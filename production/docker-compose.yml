@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - TZ=${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - n8n_network
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: n8n
+    restart: unless-stopped
+    expose:
+      - "5678"
+    environment:
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${TZ}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_RUNNERS_ENABLED=true
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_SCHEMA=public
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      # Configuration pour production avec reverse proxy
+      - N8N_HOST=${N8N_DOMAIN}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_DOMAIN}/
+      # Authentification basique (optionnel, commentez si vous utilisez un autre système)
+      # - N8N_BASIC_AUTH_ACTIVE=true
+      # - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      # - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - n8n_network
+
+  # ============================================
+  # REVERSE PROXY NGINX + CERTBOT (Configuration commentée)
+  # Décommentez cette section pour activer le reverse proxy avec SSL
+  # ============================================
+  
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: n8n_nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/conf.d:/etc/nginx/conf.d:ro
+  #     - certbot_www:/var/www/certbot:ro
+  #     - certbot_conf:/etc/letsencrypt:ro
+  #   depends_on:
+  #     - n8n
+  #   networks:
+  #     - n8n_network
+
+  # certbot:
+  #   image: certbot/certbot:latest
+  #   container_name: n8n_certbot
+  #   volumes:
+  #     - certbot_www:/var/www/certbot:rw
+  #     - certbot_conf:/etc/letsencrypt:rw
+  #   # Commande pour obtenir le certificat initial
+  #   # Remplacez cette commande par celle appropriée après la première configuration
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  postgres_data:
+    driver: local
+  n8n_data:
+    driver: local
+  # Volumes pour Certbot (décommentez si vous utilisez Nginx + Certbot)
+  # certbot_www:
+  #   driver: local
+  # certbot_conf:
+  #   driver: local
+
+networks:
+  n8n_network:
+    driver: bridge

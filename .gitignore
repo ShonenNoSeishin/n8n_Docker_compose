@@ -1,0 +1,27 @@
+# Environment variables (contient des mots de passe)
+.env
+
+# Fichiers de sauvegarde
+*.sql
+*.dump
+backup_*
+
+# Logs
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Données Docker (si volumes locaux)
+data/
+volumes/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
