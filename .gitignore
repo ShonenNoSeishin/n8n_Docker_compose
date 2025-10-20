@@ -1,6 +1,14 @@
 # Environment variables (contient des mots de passe)
 .env
 
+# Certificats SSL (clés privées sensibles)
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.pem
+*.key
+*.crt
+*.pem
+
 # Fichiers de sauvegarde
 *.sql
 *.dump

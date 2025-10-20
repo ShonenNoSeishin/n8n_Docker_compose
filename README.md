@@ -99,14 +99,86 @@ docker compose logs -f
 docker compose ps
 ```
 
-### 5. Accéder à n8n
+### 5. Générer les certificats SSL (pour HTTPS)
+
+```bash
+# Générer les certificats SSL autosignés
+./generate-ssl.sh
+```
+
+Ce script va créer les certificats SSL nécessaires pour accéder à n8n via HTTPS.
+
+### 6. Configurer le fichier hosts
+
+Ajoutez l'entrée suivante à votre fichier `/etc/hosts` :
+
+```bash
+# Linux/macOS
+sudo echo "127.0.0.1 n8n.local" >> /etc/hosts
+
+# Windows (en tant qu'administrateur)
+echo 127.0.0.1 n8n.local >> C:\Windows\System32\drivers\etc\hosts
+```
+
+### 7. Accéder à n8n
 
 Ouvrez votre navigateur et accédez à :
+```
+https://n8n.local
+```
+
+**Note :** Votre navigateur affichera un avertissement de sécurité pour le certificat autosigné. Cliquez sur "Avancé" puis "Accepter le risque" pour continuer.
+
+Pour un accès sans SSL (non recommandé), vous pouvez également accéder via :
 ```
 http://localhost:5678
 ```
 
-Ou remplacez `localhost` par l'adresse IP de votre serveur.
+## Configuration HTTPS avec Nginx
+
+Cette configuration inclut un reverse proxy Nginx avec HTTPS pour une utilisation sécurisée de n8n.
+
+### Composants
+
+- **Nginx** : Reverse proxy avec SSL/TLS
+- **Certificats SSL** : Autosignés pour le développement local
+- **Redirection** : HTTP → HTTPS automatique
+
+### Génération manuelle des certificats
+
+Si vous devez régénérer les certificats :
+
+```bash
+# Créer le dossier SSL
+mkdir -p nginx/ssl
+
+# Générer la clé privée
+openssl genrsa -out nginx/ssl/n8n.local.key 2048
+
+# Générer le certificat autosigné
+openssl req -new -x509 -key nginx/ssl/n8n.local.key -out nginx/ssl/n8n.local.crt -days 365 \
+    -subj "/C=BE/ST=Brussels/L=Brussels/O=N8N Local/OU=IT Department/CN=n8n.local" \
+    -addext "subjectAltName=DNS:n8n.local,DNS:localhost,IP:127.0.0.1"
+
+# Définir les permissions
+chmod 644 nginx/ssl/n8n.local.crt
+chmod 600 nginx/ssl/n8n.local.key
+```
+
+### Structure des fichiers
+
+```
+n8n_Docker_compose/
+├── docker-compose.yml
+├── generate-ssl.sh
+├── nginx/
+│   ├── nginx.conf
+│   └── ssl/
+│       ├── n8n.local.crt    # Certificat public
+│       └── n8n.local.key    # Clé privée (à protéger)
+├── .env
+└── README.md
+```
 
 ## Commandes utiles
 
@@ -205,12 +277,50 @@ docker compose down -v
 docker compose up -d
 ```
 
+### Tester les certificats SSL
+
+```bash
+# Vérifier l'expiration d'un certificat
+openssl x509 -in nginx/ssl/n8n.local.crt -text -noout | grep "Not After"
+
+# Tester la connexion SSL
+openssl s_client -connect n8n.local:443 -servername n8n.local
+
+# Vérifier la configuration Nginx
+docker compose exec nginx nginx -t
+```
+
 ## Sécurité
 
 - Changez le mot de passe PostgreSQL par défaut
-- Utilisez un reverse proxy (Nginx, Traefik) avec HTTPS en production
-- Limitez l'accès au port 5678 avec un firewall
+- **HTTPS configuré** : Cette configuration inclut déjà Nginx avec HTTPS
+- **Certificats SSL** : Utilisez des certificats valides en production (Let's Encrypt recommandé)
+- Limitez l'accès aux ports avec un firewall
 - Effectuez des sauvegardes régulières
+- **Clés privées** : Les fichiers `.key` sont automatiquement exclus de Git
+
+### Notes de sécurité SSL
+
+⚠️ **Développement uniquement** : Les certificats autosignés ne conviennent que pour le développement local.
+
+✅ **Production** : Utilisez des certificats valides :
+- Let's Encrypt (gratuit)
+- Certificats d'entreprise
+- Certificats commerciaux
+
+### Certificats Let's Encrypt (production)
+
+Pour la production, remplacez les certificats autosignés par des certificats Let's Encrypt :
+
+```bash
+# Installer certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Obtenir un certificat (remplacez votre-domaine.com)
+sudo certbot --nginx -d votre-domaine.com
+
+# Le renouvellement automatique est configuré via cron
+```
 
 ## Support
 
